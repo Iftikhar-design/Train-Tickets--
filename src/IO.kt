@@ -11,7 +11,9 @@ interface IO {
 }
 
 class ConsoleIO : IO {
-    override fun println(msg: String) { kotlin.io.println(msg) }
+    override fun println(msg: String) {
+        kotlin.io.println(msg)
+    }
 
     override fun readLine(prompt: String): String {
         kotlin.io.print(prompt)
@@ -21,23 +23,32 @@ class ConsoleIO : IO {
     override fun readMoney(prompt: String): Money {
         while (true) {
             val s = readLine("$prompt (e.g., 12.50): ")
-            try { return Money.ofPounds(s) }
-            catch (_: Exception) { println("Invalid amount. Use two decimals, e.g. 12.50") }
+            try {
+                return Money.ofPounds(s)
+            } catch (_: Exception) {
+                println("Invalid amount. Use two decimals, e.g. 12.50")
+            }
         }
     }
 
     override fun readOptionalMoney(prompt: String): Money? {
         val s = readLine("$prompt (blank = keep): ")
         if (s.isBlank()) return null
-        return try { Money.ofPounds(s) }
-        catch (_: Exception) { println("Invalid amount. Skipping change."); null }
+        return try {
+            Money.ofPounds(s)
+        } catch (_: Exception) {
+            println("Invalid amount. Skipping change."); null
+        }
     }
 
     override fun readMoneyOrCancel(prompt: String): Money? {
         val s = readLine("$prompt (type CANCEL to abort): ")
         if (s.equals("CANCEL", ignoreCase = true)) return null
-        return try { Money.ofPounds(s) }
-        catch (_: Exception) { println("Invalid amount. Try again."); readMoneyOrCancel(prompt) }
+        return try {
+            Money.ofPounds(s)
+        } catch (_: Exception) {
+            println("Invalid amount. Try again."); readMoneyOrCancel(prompt)
+        }
     }
 
     override fun readFactor(prompt: String): BigDecimal {
@@ -47,16 +58,19 @@ class ConsoleIO : IO {
                 val f = BigDecimal(s)
                 require(f > BigDecimal.ZERO)
                 return f
-            } catch (_: Exception) { println("Invalid factor. Must be a number > 0.") }
+            } catch (_: Exception) {
+                println("Invalid factor. Must be a number > 0.")
+            }
         }
     }
 
     override fun chooseFrom(prompt: String, options: List<String>): Int {
         require(options.isNotEmpty())
-        println(prompt)
+        // Just show the numbered options, no "Choose an option:" line at the top
         options.forEachIndexed { i, it -> println("${i + 1}. $it") }
+
         while (true) {
-            val s = readLine("Choose 1..${options.size}: ")
+            val s = readLine("Choose an option: ")
             val n = s.toIntOrNull()
             if (n != null && n in 1..options.size) return n - 1
             println("Invalid choice.")

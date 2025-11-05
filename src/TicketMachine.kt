@@ -8,8 +8,8 @@ class TicketMachine(
 ) {
     fun run() {
         loop@ while (true) {
-            when (menu("Main Menu", listOf("Buy Ticket", "Admin", "Exit"))) {
-                0 -> buyTicket()
+            when (menu("Main Menu", listOf("Search for a Ticket", "Admin", "Exit"))) {
+                0 -> searchTicket()
                 1 -> admin()
                 else -> break@loop
             }
@@ -17,20 +17,66 @@ class TicketMachine(
         io.println("Goodbye.")
     }
 
-    private fun buyTicket() {
+    // === Search flow ===
+    private fun searchTicket() {
         val views = network.all()
         if (views.isEmpty()) { io.println("No destinations configured."); return }
 
-        val destIdx = io.chooseFrom("Choose destination:", views.map { it.name })
-        val typeIdx = io.chooseFrom("Journey type:", listOf("SINGLE", "RETURN"))
+        while (true) {
+            val choice = menu(
+                "Search Tickets",
+                listOf("Search by destination", "Search by ticket type", "Back")
+            )
+            when (choice) {
+                0 -> searchByDestination()
+                1 -> searchByType()
+                else -> return
+            }
+        }
+    }
 
-        val dest = network.findByName(views[destIdx].name)!!
+    private fun searchByDestination() {
+        val all = network.all()
+        val q = io.readLine("Enter part of the destination name: ").trim()
+        val matches = if (q.isBlank()) all else all.filter { it.name.contains(q, ignoreCase = true) }
+
+        if (matches.isEmpty()) {
+            io.println("No matching destinations.")
+            return
+        }
+
+        val destIdx = io.chooseFrom("Choose an option:", matches.map { it.name })
+        val dest = network.findByName(matches[destIdx].name)!!
+
+        val typeIdx = io.chooseFrom("Choose an option:", listOf("SINGLE", "RETURN"))
         val type = if (typeIdx == 0) JourneyType.SINGLE else JourneyType.RETURN
 
+        completePurchase(dest, type)
+    }
+
+    private fun searchByType() {
+        val typeIdx = io.chooseFrom("Choose an option:", listOf("SINGLE", "RETURN"))
+        val type = if (typeIdx == 0) JourneyType.SINGLE else JourneyType.RETURN
+
+        // Build a view showing price for the chosen type to help selection
+        val views = network.all()
+        val listing = views.map { v ->
+            val price = if (type == JourneyType.SINGLE) v.single else v.ret
+            "${v.name} | $price"
+        }
+
+        val pick = io.chooseFrom("Choose an option:", listing)
+        val destName = views[pick].name
+        val dest = network.findByName(destName)!!
+
+        completePurchase(dest, type)
+    }
+
+    // === Money insertion + receipt ===
+    private fun completePurchase(dest: Station, type: JourneyType) {
         val price = fareCalc.calculateFare(dest, type)
         io.println("Amount due: $price [$type]")
 
-        // === Insert money loop ===
         var inserted = Money.ZERO
         while (inserted < price) {
             val remaining = price - inserted
@@ -48,7 +94,6 @@ class TicketMachine(
         val change = inserted - price
         dest.recordSale()
 
-        // Receipt in your exact format
         io.println("***")
         io.println(originName)
         io.println("to")
@@ -61,6 +106,7 @@ class TicketMachine(
         }
     }
 
+    // === Admin (unchanged) ===
     private fun admin() {
         when (menu("Admin", listOf("List Destinations", "Add Destination", "Edit Destination", "Change All Prices by Factor", "Back"))) {
             0 -> listDestinations()
@@ -91,7 +137,7 @@ class TicketMachine(
     private fun editDestination() {
         val names = network.all().map { it.name }
         if (names.isEmpty()) { io.println("No stations."); return }
-        val idx = io.chooseFrom("Choose station to edit:", names)
+        val idx = io.chooseFrom("Choose an option:", names)
         val stationName = names[idx]
         val newSingle = io.readOptionalMoney("New single price")
         val newReturn = io.readOptionalMoney("New return price")
@@ -110,6 +156,6 @@ class TicketMachine(
 
     private fun menu(title: String, items: List<String>): Int {
         io.println("\n== $title ==")
-        return io.chooseFrom("Select an option:", items)
+        return io.chooseFrom("Choose an option:", items)
     }
 }
