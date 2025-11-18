@@ -25,13 +25,65 @@ class TicketMachine(
         while (true) {
             val choice = menu(
                 "Search Tickets",
-                listOf("Search by destination", "Search by ticket type", "Back")
+                listOf( "Search all stations ","Search by destination", "Search by ticket type", "Back")
             )
             when (choice) {
-                0 -> searchByDestination()
-                1 -> searchByType()
+                0 -> searchAllStations()
+                1 -> searchByDestination()
+                2 -> searchByType()
                 else -> return
             }
+        }
+    }
+
+    private fun searchAllStations() {
+        val stations = network.all()
+        if (stations.isEmpty()) {
+            io.println("No stations available.")
+            return
+        }
+
+        // List all stations by name
+        val idx = io.chooseFrom("Select a station:", stations.map { it.name })
+        val chosen = network.findByName(stations[idx].name)!!
+
+        // Ask for journey type
+        val typeIdx = io.chooseFrom("Journey type:", listOf("SINGLE", "RETURN"))
+        val type = if (typeIdx == 0) JourneyType.SINGLE else JourneyType.RETURN
+
+        // Calculate fare
+        val price = fareCalc.calculateFare(chosen, type)
+        io.println("Amount due: $price [$type]")
+
+        // Money insertion loop
+        var inserted = Money.ZERO
+        while (inserted < price) {
+            val remaining = price - inserted
+            val chunk = io.readMoneyOrCancel("Insert money. Remaining: $remaining")
+            if (chunk == null) {
+                io.println("Purchase cancelled.")
+                return
+            }
+            inserted += chunk
+            if (inserted < price) {
+                io.println("Inserted: $inserted  |  Still due: ${price - inserted}")
+            }
+        }
+
+        val change = inserted - price
+        chosen.recordSale()
+
+        // Receipt
+        io.println("")
+        io.println("***")
+        io.println(originName)
+        io.println("to")
+        io.println(chosen.name)
+        io.println("Price: $price [$type]")
+        io.println("***")
+
+        if (change.isPositive()) {
+            io.println("Change: $change")
         }
     }
 
