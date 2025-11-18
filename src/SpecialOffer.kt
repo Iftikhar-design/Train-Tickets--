@@ -1,2 +1,3 @@
-class SpecialOffer {
+class SpecialOffer
+test{
 }
