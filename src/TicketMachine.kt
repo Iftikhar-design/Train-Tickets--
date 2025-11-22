@@ -100,7 +100,7 @@ class TicketMachine(
     private fun completePurchase(dest: Station, type: JourneyType) {
         var price = fareCalc.calculateFare(dest, type)
 
-        // Step 8 – apply active special offer discount if any
+        // Apply active special offer discount if any
         val today = LocalDate.now()
         val activeOffer = offerManager.findActiveOffer(dest.name, today)
 
@@ -250,14 +250,18 @@ class TicketMachine(
     private fun addSpecialOffer() {
         io.println("\n-- Add Special Offer --")
 
-        val stationName = io.readLine("Station name: ").ifBlank {
-            io.println("Station name cannot be empty.")
+        val stations = network.all()
+        if (stations.isEmpty()) {
+            io.println("No stations configured. Cannot create special offer.")
             return
         }
 
-        if (network.findByName(stationName) == null) {
-            io.println("Warning: station '$stationName' is not in the current network.")
-        }
+        // Let the admin choose from a full list of stations instead of typing
+        val idx = io.chooseFrom(
+            "Select a station for the special offer:",
+            stations.map { it.name }
+        )
+        val stationName = stations[idx].name
 
         val description = io.readLine("Description: ").ifBlank {
             io.println("Description cannot be empty.")

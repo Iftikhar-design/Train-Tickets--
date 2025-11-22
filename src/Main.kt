@@ -6,7 +6,7 @@ fun main() {
         Station("Reading",               Money.of(45.00), Money.of(46.00)),
         Station("Bristol Temple Meads",  Money.of(65.00), Money.of(42.00)),
         Station("London",                Money.of(78.00), Money.of(29.00)),
-        Station("Coventry ",             Money.of(38.00), Money.of(56.00)),
+        Station("Coventry",             Money.of(38.00), Money.of(56.00)),
         Station("Milton Keyness",        Money.of(49.00), Money.of(42.00)),
         Station("Nottingham",            Money.of(68.00), Money.of(78.00)),
 
