@@ -1,4 +1,6 @@
 import java.math.BigDecimal
+import java.time.LocalDate
+
 
 class TicketMachine(
     private val network: Network,
@@ -6,6 +8,8 @@ class TicketMachine(
     private val io: IO,
     private val originName: String
 ) {
+    private val auth = AuthSystem()
+    private val offerManager = SpecialOfferManager()
     fun run() {
         loop@ while (true) {
             when (menu("Main Menu", listOf("Search for a Ticket", "Admin", "Exit"))) {
@@ -158,13 +162,39 @@ class TicketMachine(
         }
     }
 
-    // === Admin (unchanged) ===
+    // === Admin (with login) ===
     private fun admin() {
-        when (menu("Admin", listOf("List Destinations", "Add Destination", "Edit Destination", "Change All Prices by Factor", "Back"))) {
+        io.println("\nAdmin login required.")
+        val username = io.readLine("Username: ")
+        val password = io.readLine("Password: ")
+
+        val adminUser = auth.authenticate(username, password)
+
+        if (adminUser == null) {
+            io.println("Login failed. Returning to main menu.")
+            return
+        }
+
+        when (menu("Admin", listOf(
+            "List Destinations",
+            "Add Destination",
+            "Edit Destination",
+            "Change All Prices by Factor",
+            "Add Special Offer",
+            "View/Search Offers",
+            "Delete Offer",
+            "Back"
+        ))) {
             0 -> listDestinations()
             1 -> addDestination()
             2 -> editDestination()
             3 -> bulkChange()
+            4 -> addSpecialOffer()
+            5 -> viewSearchOffers()
+            6 -> deleteOffer()
+            7 -> {
+                // Back to main menu – do nothing here
+            }
         }
     }
 
@@ -227,10 +257,92 @@ class TicketMachine(
         network.bulkAdjustPrices(factor)
         io.println("All prices updated by ×$factor.")
     }
+    // === Special Offer functions ===
+    private fun addSpecialOffer() {
+        io.println("\n-- Add Special Offer --")
+
+        val stationName = io.readLine("Station name: ").ifBlank {
+            io.println("Station name cannot be empty.")
+            return
+        }
+
+        // Optional: warn if station doesn't exist in the network
+        if (network.findByName(stationName) == null) {
+            io.println("Warning: station '$stationName' is not in the current network.")
+        }
+
+        val description = io.readLine("Description: ").ifBlank {
+            io.println("Description cannot be empty.")
+            return
+        }
+
+        val startStr = io.readLine("Start date (YYYY-MM-DD): ")
+        val endStr = io.readLine("End date   (YYYY-MM-DD): ")
+
+        val startDate = try {
+            LocalDate.parse(startStr)
+        } catch (ex: Exception) {
+            io.println("Invalid start date format.")
+            return
+        }
+
+        val endDate = try {
+            LocalDate.parse(endStr)
+        } catch (ex: Exception) {
+            io.println("Invalid end date format.")
+            return
+        }
+
+        val offer = offerManager.addOffer(
+            stationName = stationName,
+            description = description,
+            startDate = startDate,
+            endDate = endDate
+        )
+
+        io.println("Special offer added with ID: ${offer.id}")
+    }
+
+    private fun viewSearchOffers() {
+        io.println("\n-- View / Search Special Offers --")
+        val query = io.readLine("Enter station name to filter (or press Enter for all): ")
+        val stationFilter = query.ifBlank { null }
+
+        val offers = offerManager.searchOffers(stationFilter)
+
+        if (offers.isEmpty()) {
+            io.println("No special offers found.")
+            return
+        }
+
+        offers.forEach { offer ->
+            io.println(
+                "ID: ${offer.id} | Station: ${offer.stationName} | " +
+                        "${offer.startDate} to ${offer.endDate} | ${offer.description}"
+            )
+        }
+    }
+
+    private fun deleteOffer() {
+        io.println("\n-- Delete Special Offer --")
+        val idStr = io.readLine("Enter ID of offer to delete: ")
+        val id = idStr.toIntOrNull()
+
+        if (id == null) {
+            io.println("Invalid ID.")
+            return
+        }
+
+        val deleted = offerManager.deleteOffer(id)
+        if (deleted) {
+            io.println("Offer with ID $id deleted.")
+        } else {
+            io.println("No offer found with ID $id.")
+        }
+    }
 
     private fun menu(title: String, items: List<String>): Int {
         io.println("\n== $title ==")
         return io.chooseFrom("Choose an option:", items)
     }
 }
-
