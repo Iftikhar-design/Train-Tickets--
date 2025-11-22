@@ -1,7 +1,6 @@
 import java.math.BigDecimal
 import java.time.LocalDate
 
-
 class TicketMachine(
     private val network: Network,
     private val fareCalc: FareCalculator,
@@ -10,6 +9,7 @@ class TicketMachine(
 ) {
     private val auth = AuthSystem()
     private val offerManager = SpecialOfferManager()
+
     fun run() {
         loop@ while (true) {
             when (menu("Main Menu", listOf("Search for a Ticket", "Admin", "Exit"))) {
@@ -24,12 +24,15 @@ class TicketMachine(
     // === Search flow ===
     private fun searchTicket() {
         val views = network.all()
-        if (views.isEmpty()) { io.println("No destinations configured."); return }
+        if (views.isEmpty()) {
+            io.println("No destinations configured.")
+            return
+        }
 
         while (true) {
             val choice = menu(
                 "Search Tickets",
-                listOf( "Search all stations ","Search by destination", "Search by ticket type", "Back")
+                listOf("Search all stations", "Search by destination", "Search by ticket type", "Back")
             )
             when (choice) {
                 0 -> searchAllStations()
@@ -47,48 +50,14 @@ class TicketMachine(
             return
         }
 
-        // List all stations by name
         val idx = io.chooseFrom("Select a station:", stations.map { it.name })
         val chosen = network.findByName(stations[idx].name)!!
 
-        // Ask for journey type
         val typeIdx = io.chooseFrom("Journey type:", listOf("SINGLE", "RETURN"))
         val type = if (typeIdx == 0) JourneyType.SINGLE else JourneyType.RETURN
 
-        // Calculate fare
-        val price = fareCalc.calculateFare(chosen, type)
-        io.println("Amount due: $price [$type]")
-
-        // Money insertion loop
-        var inserted = Money.ZERO
-        while (inserted < price) {
-            val remaining = price - inserted
-            val chunk = io.readMoneyOrCancel("Insert money. Remaining: $remaining")
-            if (chunk == null) {
-                io.println("Purchase cancelled.")
-                return
-            }
-            inserted += chunk
-            if (inserted < price) {
-                io.println("Inserted: $inserted  |  Still due: ${price - inserted}")
-            }
-        }
-
-        val change = inserted - price
-        chosen.recordSale()
-
-        // Receipt
-        io.println("")
-        io.println("***")
-        io.println(originName)
-        io.println("to")
-        io.println(chosen.name)
-        io.println("Price: $price [$type]")
-        io.println("***")
-
-        if (change.isPositive()) {
-            io.println("Change: $change")
-        }
+        // Use common purchase flow (offers applied there)
+        completePurchase(chosen, type)
     }
 
     private fun searchByDestination() {
@@ -114,7 +83,6 @@ class TicketMachine(
         val typeIdx = io.chooseFrom("Choose an option:", listOf("SINGLE", "RETURN"))
         val type = if (typeIdx == 0) JourneyType.SINGLE else JourneyType.RETURN
 
-        // Build a view showing price for the chosen type to help selection
         val views = network.all()
         val listing = views.map { v ->
             val price = if (type == JourneyType.SINGLE) v.single else v.ret
@@ -130,7 +98,24 @@ class TicketMachine(
 
     // === Money insertion + receipt ===
     private fun completePurchase(dest: Station, type: JourneyType) {
-        val price = fareCalc.calculateFare(dest, type)
+        var price = fareCalc.calculateFare(dest, type)
+
+        // Step 8 – apply active special offer discount if any
+        val today = LocalDate.now()
+        val activeOffer = offerManager.findActiveOffer(dest.name, today)
+
+        if (activeOffer != null) {
+            val discountPercent = activeOffer.discountPercent
+            if (discountPercent in 1..99) {
+                val fraction = BigDecimal(discountPercent).divide(BigDecimal(100))
+                val discountAmount = price * fraction
+                price -= discountAmount
+
+                io.println("Special offer applied: ${activeOffer.description} (-$discountPercent%)")
+                io.println("Discount amount: $discountAmount")
+            }
+        }
+
         io.println("Amount due: $price [$type]")
 
         var inserted = Money.ZERO
@@ -193,7 +178,7 @@ class TicketMachine(
             5 -> viewSearchOffers()
             6 -> deleteOffer()
             7 -> {
-                // Back to main menu – do nothing here
+                // Back to main menu
             }
         }
     }
@@ -205,19 +190,16 @@ class TicketMachine(
             return
         }
 
-        // Column widths
         val nameWidth = all.maxOf { it.name.length }.coerceAtLeast(10)
         val priceWidth = 10
         val salesWidth = 5
 
-        // Header
         io.println(
             "%-${nameWidth}s | %-${priceWidth}s | %-${priceWidth}s | %${salesWidth}s"
                 .format("Station", "Single", "Return", "Sales")
         )
         io.println("-".repeat(nameWidth + priceWidth * 2 + salesWidth + 9))
 
-        // Rows
         all.forEach {
             io.println(
                 "%-${nameWidth}s | %-${priceWidth}s | %-${priceWidth}s | %${salesWidth}d"
@@ -226,12 +208,15 @@ class TicketMachine(
         }
     }
 
-
     private fun addDestination() {
         val name = io.readLine("New station name: ").ifBlank {
-            io.println("Name cannot be empty."); return
+            io.println("Name cannot be empty.")
+            return
         }
-        if (network.findByName(name) != null) { io.println("Station already exists."); return }
+        if (network.findByName(name) != null) {
+            io.println("Station already exists.")
+            return
+        }
         val single = io.readMoney("Single price")
         val ret = io.readMoney("Return price")
         network.add(Station(name, single, ret))
@@ -240,7 +225,10 @@ class TicketMachine(
 
     private fun editDestination() {
         val names = network.all().map { it.name }
-        if (names.isEmpty()) { io.println("No stations."); return }
+        if (names.isEmpty()) {
+            io.println("No stations.")
+            return
+        }
         val idx = io.chooseFrom("Choose an option:", names)
         val stationName = names[idx]
         val newSingle = io.readOptionalMoney("New single price")
@@ -257,6 +245,7 @@ class TicketMachine(
         network.bulkAdjustPrices(factor)
         io.println("All prices updated by ×$factor.")
     }
+
     // === Special Offer functions ===
     private fun addSpecialOffer() {
         io.println("\n-- Add Special Offer --")
@@ -266,13 +255,19 @@ class TicketMachine(
             return
         }
 
-        // Optional: warn if station doesn't exist in the network
         if (network.findByName(stationName) == null) {
             io.println("Warning: station '$stationName' is not in the current network.")
         }
 
         val description = io.readLine("Description: ").ifBlank {
             io.println("Description cannot be empty.")
+            return
+        }
+
+        val discountStr = io.readLine("Discount percentage (e.g. 10 for 10%): ")
+        val discountPercent = discountStr.toIntOrNull()
+        if (discountPercent == null || discountPercent !in 1..99) {
+            io.println("Invalid discount percentage.")
             return
         }
 
@@ -293,11 +288,17 @@ class TicketMachine(
             return
         }
 
+        if (endDate.isBefore(startDate)) {
+            io.println("End date cannot be before start date.")
+            return
+        }
+
         val offer = offerManager.addOffer(
             stationName = stationName,
             description = description,
             startDate = startDate,
-            endDate = endDate
+            endDate = endDate,
+            discountPercent = discountPercent
         )
 
         io.println("Special offer added with ID: ${offer.id}")

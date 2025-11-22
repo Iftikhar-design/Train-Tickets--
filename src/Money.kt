@@ -9,7 +9,7 @@ value class Money(val amount: BigDecimal) : Comparable<Money> {
     operator fun minus(other: Money): Money =
         Money(this.amount.subtract(other.amount).setScale(2, RoundingMode.HALF_UP))
 
-    fun times(factor: BigDecimal): Money =
+    operator fun times(factor: BigDecimal): Money =
         Money(this.amount.multiply(factor).setScale(2, RoundingMode.HALF_UP))
 
     override fun compareTo(other: Money): Int = this.amount.compareTo(other.amount)
@@ -17,7 +17,8 @@ value class Money(val amount: BigDecimal) : Comparable<Money> {
     fun isPositive(): Boolean = this.amount > BigDecimal.ZERO
     fun isZero(): Boolean = this.amount.compareTo(BigDecimal.ZERO) == 0
 
-    override fun toString(): String = "£" + amount.setScale(2, RoundingMode.HALF_UP).toPlainString()
+    override fun toString(): String =
+        "£" + amount.setScale(2, RoundingMode.HALF_UP).toPlainString()
 
     companion object {
         val ZERO = Money(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP))
@@ -28,6 +29,8 @@ value class Money(val amount: BigDecimal) : Comparable<Money> {
             require(bd >= BigDecimal.ZERO) { "Money cannot be negative." }
             return Money(bd)
         }
-        fun of(value: Double): Money = Money(BigDecimal(value).setScale(2, RoundingMode.HALF_UP))
+
+        fun of(value: Double): Money =
+            Money(BigDecimal(value).setScale(2, RoundingMode.HALF_UP))
     }
 }

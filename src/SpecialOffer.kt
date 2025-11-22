@@ -5,9 +5,6 @@ data class SpecialOffer(
     val stationName: String,
     val description: String,
     val startDate: LocalDate,
-    val endDate: LocalDate
-) {
-    fun isActiveOn(date: LocalDate): Boolean {
-        return !date.isBefore(startDate) && !date.isAfter(endDate)
-    }
-}
+    val endDate: LocalDate,
+    val discountPercent: Int    // e.g. 10 means 10% off
+)
